@@ -257,5 +257,6 @@ const onModelClick = (model) => {
 
 .model-tag.is-selected {
   border-color: color-mix(in srgb, var(--text-accent) 38%, var(--border-primary));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text-accent) 14%, transparent);
 }
 </style>

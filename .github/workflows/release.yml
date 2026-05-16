@@ -77,7 +77,59 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build release package
-        run: pnpm ${{ matrix.dist_script }}
+        shell: bash
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          MAC_CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          MAC_CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          platform="${{ matrix.platform }}"
+          cert_link=""
+          cert_password=""
+
+          if [[ "${platform}" == "win" ]]; then
+            cert_link="$(printf '%s' "${WIN_CSC_LINK:-}" | tr -d '\r')"
+            cert_password="$(printf '%s' "${WIN_CSC_KEY_PASSWORD:-}" | tr -d '\r')"
+          elif [[ "${platform}" == "mac" ]]; then
+            cert_link="$(printf '%s' "${MAC_CSC_LINK:-}" | tr -d '\r')"
+            cert_password="$(printf '%s' "${MAC_CSC_KEY_PASSWORD:-}" | tr -d '\r')"
+          fi
+
+          if [[ -n "${cert_link}" && -n "${cert_password}" ]]; then
+            export CSC_LINK="${cert_link}"
+            export CSC_KEY_PASSWORD="${cert_password}"
+            echo "Signing enabled for platform=${platform}."
+          else
+            unset CSC_LINK CSC_KEY_PASSWORD WIN_CSC_LINK WIN_CSC_KEY_PASSWORD MAC_CSC_LINK MAC_CSC_KEY_PASSWORD
+            export CSC_IDENTITY_AUTO_DISCOVERY=false
+            echo "Signing disabled for platform=${platform} (certificate or password is empty)."
+          fi
+
+          pnpm ${{ matrix.dist_script }}
+
+      - name: Verify pg is bundled into electron main
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('fs');
+          const mainBundle = fs.readFileSync('electron/main.js', 'utf8');
+
+          if (/require\((['"])pg\1\)/.test(mainBundle)) {
+            console.error('electron/main.js still contains runtime require("pg").');
+            process.exit(1);
+          }
+
+          if (!/postgres-array|pg-types/.test(mainBundle)) {
+            console.error('electron/main.js does not include expected bundled postgres parser code.');
+            process.exit(1);
+          }
+
+          console.log('pg bundling guardrail passed.');
+          NODE
 
       - name: Upload platform artifacts
         uses: actions/upload-artifact@v4
