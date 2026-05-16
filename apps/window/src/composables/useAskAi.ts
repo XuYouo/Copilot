@@ -10,81 +10,6 @@ import {
 import { sanitizeToolArgs } from '../utils/formatters';
 import { buildMcpSystemPrompt } from '../utils/mcpPrompt';
 
-const DEEPSEEK_OFFICIAL_CHANNEL = 'deepseek-official';
-const STAINLESS_HEADER_PREFIX = 'x-stainless-';
-
-function parseDeepSeekUserTokenValue(rawValue: any): string {
-  const source = String(rawValue || '').trim();
-  if (!source) return '';
-
-  try {
-    const parsed = JSON.parse(source);
-    if (typeof parsed === 'string') {
-      return parseDeepSeekUserTokenValue(parsed);
-    }
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const value = (parsed as any).value;
-      if (typeof value === 'string') {
-        return value.trim();
-      }
-      if (value !== undefined && value !== null) {
-        return String(value).trim();
-      }
-    }
-  } catch (_error) {
-    // keep raw source
-  }
-
-  return source;
-}
-
-function resolveDeepSeekToken(rawApiKey: any): string {
-  if (Array.isArray(rawApiKey)) {
-    const pool = [...rawApiKey];
-    while (pool.length > 0) {
-      const index = Math.floor(Math.random() * pool.length);
-      const candidate = pool.splice(index, 1)[0];
-      const token = parseDeepSeekUserTokenValue(candidate);
-      if (token) return token;
-    }
-    return '';
-  }
-  return parseDeepSeekUserTokenValue(rawApiKey);
-}
-
-function removeStainlessHeaders(headersInput: any) {
-  const headers = new Headers(headersInput || {});
-  const keysToDelete = [];
-  headers.forEach((_value, key) => {
-    if (String(key).toLowerCase().startsWith(STAINLESS_HEADER_PREFIX)) {
-      keysToDelete.push(key);
-    }
-  });
-  keysToDelete.forEach((key) => headers.delete(key));
-  return headers;
-}
-
-async function fetchWithoutStainlessHeaders(input: any, init?: any) {
-  if (input instanceof Request) {
-    const mergedHeaders = new Headers(input.headers || {});
-    const initHeaders = removeStainlessHeaders(init?.headers);
-    initHeaders.forEach((value, key) => {
-      mergedHeaders.set(key, value);
-    });
-    const sanitizedHeaders = removeStainlessHeaders(mergedHeaders);
-    const request = new Request(input, {
-      ...(init || {}),
-      headers: sanitizedHeaders,
-    });
-    return fetch(request);
-  }
-
-  return fetch(input, {
-    ...(init || {}),
-    headers: removeStainlessHeaders(init?.headers),
-  });
-}
-
 export function useAskAi(options: any) {
   const {
     refs,
@@ -206,47 +131,17 @@ export function useAskAi(options: any) {
     };
 
     try {
-      const selectedModelKey = String(model.value || '');
-      const selectedProviderId = selectedModelKey.split('|')[0] || '';
-      const selectedProvider = currentConfig.value?.providers?.[selectedProviderId];
-      const providerChannel = String(selectedProvider?.channel || '').toLowerCase();
-
       let effectiveApiKey = api_key.value;
       let effectiveBaseUrl = base_url.value;
 
-      if (providerChannel === DEEPSEEK_OFFICIAL_CHANNEL) {
-        const sampledToken = resolveDeepSeekToken(effectiveApiKey);
-        if (!sampledToken) {
-          throw new Error('DeepSeek userToken 未配置，请先在服务商页面登录 DeepSeek 或手动填写。');
-        }
-        effectiveApiKey = sampledToken;
-
-        const proxyResult = await window.api.ensureDeepSeekProxy?.();
-        if (!proxyResult?.ok || !proxyResult.baseUrl) {
-          throw new Error(proxyResult?.error || 'DeepSeek 代理启动失败。');
-        }
-
-        effectiveBaseUrl = proxyResult.baseUrl;
-        base_url.value = effectiveBaseUrl;
-      }
-
       const { OpenAI } = await import('openai');
 
-      const apiKeyProvider = () =>
-        providerChannel === DEEPSEEK_OFFICIAL_CHANNEL
-          ? String(effectiveApiKey || '').trim()
-          : window.api.getRandomItem(effectiveApiKey);
-
       const openaiConfig: any = {
-        apiKey: apiKeyProvider,
+        apiKey: () => window.api.getRandomItem(effectiveApiKey),
         baseURL: effectiveBaseUrl,
         dangerouslyAllowBrowser: true,
         maxRetries: 3,
       };
-
-      if (providerChannel === DEEPSEEK_OFFICIAL_CHANNEL) {
-        openaiConfig.fetch = fetchWithoutStainlessHeaders;
-      }
 
       const openai = new OpenAI(openaiConfig);
 

@@ -477,13 +477,6 @@
     "moveUpTooltip": "Переместить вверх",
     "moveDownTooltip": "Переместить вниз",
     "deleteProviderTooltip": "Удалить провайдера",
-    "deepseekUserTokenLabel": "Token",
-    "deepseekUserTokenPlaceholder": "Введите userToken DeepSeek (или заполните автоматически после входа)",
-    "deepseekUserTokenDescription": "Официальный канал DeepSeek использует авторизацию по userToken; ручная вставка также поддерживается.",
-    "deepseekLoginBtn": "Войти в DeepSeek",
-    "deepseekBuiltinChannelHint": "Встроенный официальный канал: локальный прокси и авторизация управляются автоматически.",
-    "deepseekProxyUrlLabel": "URL прокси",
-    "deepseekProxyUrlPlaceholder": "Управляется приложением автоматически",
     "apiKeyLabel": "Ключ API",
     "apiKeyPlaceholder": "Введите ключ API (можно несколько, через запятую)",
     "apiKeyDescription": "Вы можете ввести несколько ключей API, разделенных запятыми.",
@@ -529,12 +522,6 @@
       "fetchModelsFailedDefault": "Не удалось получить модели.",
       "configSaveFailed": "Не удалось сохранить конфигурацию.",
       "saveFailed": "Ошибка сохранения",
-      "deepseekProxyStartFailed": "Не удалось запустить прокси DeepSeek.",
-      "deepseekProxyStartFailedWithReason": "Не удалось запустить прокси DeepSeek: {message}",
-      "deepseekLoginSuccess": "Вход в DeepSeek выполнен, userToken сохранён.",
-      "deepseekLoginCancelled": "Вход в DeepSeek отменён.",
-      "deepseekLoginFailed": "Не удалось войти в DeepSeek.",
-      "deepseekLoginFailedWithReason": "Не удалось войти в DeepSeek: {message}",
       "modelMetadataLoadFailed": "Не удалось загрузить метаданные моделей. Используется отображение по умолчанию."
     }
   },
@@ -748,7 +735,8 @@
     },
     "empty": {
       "assistants": "Нет включенных ассистентов",
-      "assistantSessions": "Для этого ассистента нет истории"
+      "assistantSessions": "Для этого ассистента нет истории",
+      "homePrompt": "Что построить в {assistant}?"
     },
     "errors": {
       "loadSessionFailed": "Не удалось загрузить сессию",

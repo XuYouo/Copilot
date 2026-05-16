@@ -259,12 +259,6 @@ window.api = {
   cacheBackgroundImage: (url) => {
     cacheBackgroundImage(url).catch((e) => console.error(e));
   },
-  ensureDeepSeekProxy: async () => {
-    return ipcRenderer.invoke('deepseek:ensure-proxy');
-  },
-  loginDeepSeek: async () => {
-    return ipcRenderer.invoke('deepseek:login');
-  },
   listConversations: async (filter = {}) => {
     return ipcRenderer.invoke('storage:conversation-list', filter);
   },

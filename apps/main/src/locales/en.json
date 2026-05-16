@@ -477,13 +477,6 @@
     "moveUpTooltip": "Move Up",
     "moveDownTooltip": "Move Down",
     "deleteProviderTooltip": "Delete Provider",
-    "deepseekUserTokenLabel": "Token",
-    "deepseekUserTokenPlaceholder": "Enter DeepSeek userToken (or auto-fill after login)",
-    "deepseekUserTokenDescription": "DeepSeek official channel uses userToken authentication; manual paste is also supported.",
-    "deepseekLoginBtn": "Sign in to DeepSeek",
-    "deepseekBuiltinChannelHint": "Built-in official channel: local proxy and authentication are managed automatically.",
-    "deepseekProxyUrlLabel": "Proxy URL",
-    "deepseekProxyUrlPlaceholder": "Managed by the app automatically",
     "apiKeyLabel": "API Key",
     "apiKeyPlaceholder": "Enter API Key (multiple can be entered, separated by commas)",
     "apiKeyDescription": "You can enter multiple API keys separated by commas.",
@@ -529,12 +522,6 @@
       "fetchModelsFailedDefault": "Failed to fetch models.",
       "configSaveFailed": "Failed to save configuration.",
       "saveFailed": "Save failed",
-      "deepseekProxyStartFailed": "Failed to start DeepSeek proxy.",
-      "deepseekProxyStartFailedWithReason": "Failed to start DeepSeek proxy: {message}",
-      "deepseekLoginSuccess": "DeepSeek login successful. userToken has been saved.",
-      "deepseekLoginCancelled": "DeepSeek login cancelled.",
-      "deepseekLoginFailed": "DeepSeek login failed.",
-      "deepseekLoginFailedWithReason": "DeepSeek login failed: {message}",
       "modelMetadataLoadFailed": "Failed to load model metadata. Falling back to default display."
     }
   },
@@ -748,7 +735,8 @@
     },
     "empty": {
       "assistants": "No enabled assistants",
-      "assistantSessions": "No history for this assistant"
+      "assistantSessions": "No history for this assistant",
+      "homePrompt": "What should we build in {assistant}?"
     },
     "errors": {
       "loadSessionFailed": "Failed to load session",

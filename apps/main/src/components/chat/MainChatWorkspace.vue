@@ -9,11 +9,11 @@ import {
   computed,
   defineAsyncComponent,
 } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { ElContainer, ElMain } from 'element-plus';
 
 import ChatHeader from '@window/components/ChatHeader.vue';
 const ChatMessage = defineAsyncComponent(() => import('@window/components/ChatMessage.vue'));
-const NewChatAnimationStage = defineAsyncComponent(() => import('./NewChatAnimationStage.vue'));
 import MessageAnchorLine from '@window/components/navigation/MessageAnchorLine.vue';
 import ChatInput from '@window/components/ChatInput.vue';
 import ImageViewerOverlay from '@window/components/ImageViewerOverlay.vue';
@@ -54,10 +54,11 @@ const lastSelectionEnd = ref(null);
 const chatContainerRef = ref(null);
 const mainAreaWrapperRef = ref<HTMLElement | null>(null);
 const chatInputShellRef = ref<HTMLElement | null>(null);
-const newChatAnimationShellRef = ref<HTMLElement | null>(null);
+const newChatPromptShellRef = ref<HTMLElement | null>(null);
 
 const isSessionDirty = ref(false);
 const hasSessionInitialized = ref(false);
+const { t } = useI18n();
 
 let textSearchInstance = null;
 
@@ -114,21 +115,25 @@ const api_key = ref('');
 const history = ref([]);
 const chat_show = ref([]);
 const loading = ref(false);
-const animationRefreshNonce = ref(0);
 const nonSystemMessages = computed(() =>
   chat_show.value.filter((message) => String(message?.role || '').toLowerCase() !== 'system'),
 );
-const showNewChatAnimation = computed(
+const showNewChatEmptyState = computed(
   () => hasSessionInitialized.value && !loading.value && nonSystemMessages.value.length === 0,
+);
+const newChatTitle = computed(() =>
+  t('mainChat.empty.homePrompt', {
+    assistant: String(CODE.value || props.assistantCode || 'Sanft').trim() || 'Sanft',
+  }),
 );
 const chatInputShellTop = ref(-9999);
 const chatInputShellHeight = ref(0);
-const newChatAnimationTop = ref(-9999);
+const newChatPromptTop = ref(-9999);
 const isLayoutInitialized = ref(false);
 const mainAreaWrapperStyle = computed(() => ({
   '--chat-input-shell-top': `${Math.max(chatInputShellTop.value, 0)}px`,
   '--chat-input-shell-height': `${Math.max(chatInputShellHeight.value, 0)}px`,
-  '--new-chat-animation-top': `${Math.max(newChatAnimationTop.value, 0)}px`,
+  '--new-chat-prompt-top': `${Math.max(newChatPromptTop.value, 0)}px`,
 }));
 const prompt = ref('');
 const signalController = ref(null);
@@ -251,7 +256,7 @@ const {
   imageViewerInitialIndex,
 });
 
-const NEW_CHAT_STACK_GAP = 24;
+const NEW_CHAT_STACK_GAP = 28;
 let layoutResizeObserver: ResizeObserver | null = null;
 
 const updateNewChatLayoutMetrics = () => {
@@ -261,27 +266,27 @@ const updateNewChatLayoutMetrics = () => {
 
   const wrapperHeight = wrapper.clientHeight || 0;
   const inputHeight = inputShell.offsetHeight || 0;
-  const animationHeight = showNewChatAnimation.value
-    ? newChatAnimationShellRef.value?.offsetHeight || 0
+  const promptHeight = showNewChatEmptyState.value
+    ? newChatPromptShellRef.value?.offsetHeight || 0
     : 0;
 
   chatInputShellHeight.value = inputHeight;
 
   const normalInputTop = Math.max(wrapperHeight - inputHeight, 0);
 
-  if (!showNewChatAnimation.value) {
+  if (!showNewChatEmptyState.value) {
     chatInputShellTop.value = normalInputTop;
-    newChatAnimationTop.value = Math.max((wrapperHeight - animationHeight) / 2, 0);
+    newChatPromptTop.value = Math.max((wrapperHeight - promptHeight) / 2, 0);
     if (!isLayoutInitialized.value) {
       isLayoutInitialized.value = true;
     }
     return;
   }
 
-  const stackedHeight = animationHeight + NEW_CHAT_STACK_GAP + inputHeight;
-  const stackTop = Math.max((wrapperHeight - stackedHeight) / 2, 0);
-  newChatAnimationTop.value = stackTop;
-  chatInputShellTop.value = stackTop + animationHeight + NEW_CHAT_STACK_GAP;
+  const stackedHeight = promptHeight + NEW_CHAT_STACK_GAP + inputHeight;
+  const stackTop = Math.max((wrapperHeight - stackedHeight) / 2 - 8, 40);
+  newChatPromptTop.value = stackTop;
+  chatInputShellTop.value = stackTop + promptHeight + NEW_CHAT_STACK_GAP;
   if (!isLayoutInitialized.value) {
     isLayoutInitialized.value = true;
   }
@@ -305,8 +310,8 @@ const reconnectLayoutResizeObserver = () => {
   if (chatInputShellRef.value) {
     layoutResizeObserver.observe(chatInputShellRef.value);
   }
-  if (newChatAnimationShellRef.value) {
-    layoutResizeObserver.observe(newChatAnimationShellRef.value);
+  if (newChatPromptShellRef.value) {
+    layoutResizeObserver.observe(newChatPromptShellRef.value);
   }
 };
 
@@ -531,7 +536,7 @@ watch(
   { immediate: true },
 );
 watch(
-  showNewChatAnimation,
+  showNewChatEmptyState,
   async () => {
     await nextTick();
     reconnectLayoutResizeObserver();
@@ -539,11 +544,6 @@ watch(
   },
   { immediate: true },
 );
-watch(animationRefreshNonce, async () => {
-  await nextTick();
-  reconnectLayoutResizeObserver();
-  scheduleLayoutMetricsUpdate();
-});
 
 onMounted(async () => {
   if (isInit.value) return;
@@ -946,9 +946,6 @@ watch(
     const nonce = Number(request?.nonce || 0);
     if (!isInit.value || !nonce || nonce === lastSessionRequestNonce.value) return;
     lastSessionRequestNonce.value = nonce;
-    if (request.mode === 'new') {
-      animationRefreshNonce.value += 1;
-    }
 
     runWorkspaceTask(async (isStale: any) => {
       if (isStale()) return;
@@ -1018,7 +1015,7 @@ const handleOpenSearch = () => {
         'has-bg': !!windowBackgroundImage,
         'native-vibrancy': isNativeMacVibrancy,
         'fallback-vibrancy': !isNativeMacVibrancy,
-        'is-new-chat-layout': showNewChatAnimation,
+        'is-new-chat-layout': showNewChatEmptyState,
       }"
     >
       <ChatHeader
@@ -1035,7 +1032,7 @@ const handleOpenSearch = () => {
       <div
         ref="mainAreaWrapperRef"
         class="main-area-wrapper"
-        :class="{ 'is-new-chat-layout': showNewChatAnimation }"
+        :class="{ 'is-new-chat-layout': showNewChatEmptyState }"
         :style="mainAreaWrapperStyle"
       >
         <el-main
@@ -1075,13 +1072,13 @@ const handleOpenSearch = () => {
           />
         </el-main>
 
-        <Transition name="new-chat-stage">
+        <Transition name="new-chat-home">
           <div
-            v-if="showNewChatAnimation"
-            ref="newChatAnimationShellRef"
-            class="new-chat-animation-shell"
+            v-if="showNewChatEmptyState"
+            ref="newChatPromptShellRef"
+            class="new-chat-prompt-shell"
           >
-            <NewChatAnimationStage :refresh-nonce="animationRefreshNonce" />
+            <h1 class="new-chat-title">{{ newChatTitle }}</h1>
           </div>
         </Transition>
 
@@ -1100,7 +1097,7 @@ const handleOpenSearch = () => {
         <div
           ref="chatInputShellRef"
           class="chat-input-shell"
-          :class="{ 'is-centered': showNewChatAnimation, 'has-messages': !showNewChatAnimation }"
+          :class="{ 'is-centered': showNewChatEmptyState, 'has-messages': !showNewChatEmptyState }"
         >
           <ChatInput
             ref="chatInputRef"
@@ -1109,7 +1106,7 @@ const handleOpenSearch = () => {
             v-model:selectedVoice="selectedVoice"
             v-model:tempReasoningEffort="tempReasoningEffort"
             :loading="loading"
-            :compact-new-chat-mode="showNewChatAnimation"
+            :compact-new-chat-mode="showNewChatEmptyState"
             :ctrlEnterToSend="currentConfig.CtrlEnterToSend"
             :layout="inputLayout"
             :voiceList="currentConfig.voiceList"
@@ -1225,7 +1222,7 @@ const handleOpenSearch = () => {
 .main-area-wrapper {
   --chat-input-shell-top: 0px;
   --chat-input-shell-height: 0px;
-  --new-chat-animation-top: 0px;
+  --new-chat-prompt-top: 0px;
   --chat-input-bottom-gap-height: 20px;
 }
 
@@ -1257,11 +1254,11 @@ const handleOpenSearch = () => {
   transition: top 380ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-.new-chat-animation-shell {
+.new-chat-prompt-shell {
   position: absolute;
   left: 0;
   right: 0;
-  top: var(--new-chat-animation-top);
+  top: var(--new-chat-prompt-top);
   z-index: 25;
   display: flex;
   align-items: center;
@@ -1274,16 +1271,38 @@ const handleOpenSearch = () => {
   will-change: top, opacity, transform;
 }
 
-.new-chat-stage-enter-active,
-.new-chat-stage-leave-active {
-  transition:
-    opacity 220ms ease,
-    transform 320ms cubic-bezier(0.22, 1, 0.36, 1);
+.new-chat-title {
+  margin: 0;
+  padding: 0 24px;
+  color: #171717;
+  font-size: clamp(30px, 3.1vw, 44px);
+  font-weight: 500;
+  line-height: 1.16;
+  letter-spacing: 0;
+  text-align: center;
 }
 
-.new-chat-stage-enter-from,
-.new-chat-stage-leave-to {
+html.dark .new-chat-title {
+  color: #f1f0ed;
+}
+
+.new-chat-home-enter-active,
+.new-chat-home-leave-active {
+  transition:
+    opacity 180ms ease,
+    transform 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.new-chat-home-enter-from,
+.new-chat-home-leave-to {
   opacity: 0;
-  transform: translateY(10px);
+  transform: translateY(6px);
+}
+
+@media (max-width: 760px) {
+  .new-chat-title {
+    font-size: 28px;
+    line-height: 1.2;
+  }
 }
 </style>

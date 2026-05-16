@@ -1422,8 +1422,8 @@ var require_sasl = __commonJS({
         message: "SASLInitialResponse"
       };
     }
-    async function continueSession(session2, password, serverData, stream) {
-      if (session2.message !== "SASLInitialResponse") {
+    async function continueSession(session, password, serverData, stream) {
+      if (session.message !== "SASLInitialResponse") {
         throw new Error("SASL: Last message was not SASLInitialResponse");
       }
       if (typeof password !== "string") {
@@ -1436,15 +1436,15 @@ var require_sasl = __commonJS({
         throw new Error("SASL: SCRAM-SERVER-FIRST-MESSAGE: serverData must be a string");
       }
       const sv = parseServerFirstMessage(serverData);
-      if (!sv.nonce.startsWith(session2.clientNonce)) {
+      if (!sv.nonce.startsWith(session.clientNonce)) {
         throw new Error("SASL: SCRAM-SERVER-FIRST-MESSAGE: server nonce does not start with client nonce");
-      } else if (sv.nonce.length === session2.clientNonce.length) {
+      } else if (sv.nonce.length === session.clientNonce.length) {
         throw new Error("SASL: SCRAM-SERVER-FIRST-MESSAGE: server nonce is too short");
       }
-      const clientFirstMessageBare = "n=*,r=" + session2.clientNonce;
+      const clientFirstMessageBare = "n=*,r=" + session.clientNonce;
       const serverFirstMessage = "r=" + sv.nonce + ",s=" + sv.salt + ",i=" + sv.iteration;
       let channelBinding = stream ? "eSws" : "biws";
-      if (session2.mechanism === "SCRAM-SHA-256-PLUS") {
+      if (session.mechanism === "SCRAM-SHA-256-PLUS") {
         const peerCert = stream.getPeerCertificate().raw;
         let hashName = signatureAlgorithmHashFromCertificate(peerCert);
         if (hashName === "MD5" || hashName === "SHA-1") hashName = "SHA-256";
@@ -1462,19 +1462,19 @@ var require_sasl = __commonJS({
       const clientProof = xorBuffers(Buffer.from(clientKey), Buffer.from(clientSignature)).toString("base64");
       const serverKey = await crypto.hmacSha256(saltedPassword, "Server Key");
       const serverSignatureBytes = await crypto.hmacSha256(serverKey, authMessage);
-      session2.message = "SASLResponse";
-      session2.serverSignature = Buffer.from(serverSignatureBytes).toString("base64");
-      session2.response = clientFinalMessageWithoutProof + ",p=" + clientProof;
+      session.message = "SASLResponse";
+      session.serverSignature = Buffer.from(serverSignatureBytes).toString("base64");
+      session.response = clientFinalMessageWithoutProof + ",p=" + clientProof;
     }
-    function finalizeSession(session2, serverData) {
-      if (session2.message !== "SASLResponse") {
+    function finalizeSession(session, serverData) {
+      if (session.message !== "SASLResponse") {
         throw new Error("SASL: Last message was not SASLResponse");
       }
       if (typeof serverData !== "string") {
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: serverData must be a string");
       }
       const { serverSignature } = parseServerFinalMessage(serverData);
-      if (serverSignature !== session2.serverSignature) {
+      if (serverSignature !== session.serverSignature) {
         throw new Error("SASL: SCRAM-SERVER-FINAL-MESSAGE: server signature does not match");
       }
     }
@@ -3095,8 +3095,8 @@ var require_stream = __commonJS({
     };
     function getNodejsStreamFuncs() {
       function getStream2(ssl) {
-        const net2 = require("net");
-        return new net2.Socket();
+        const net = require("net");
+        return new net.Socket();
       }
       function getSecureStream2(options) {
         const tls = require("tls");
@@ -3218,8 +3218,8 @@ var require_connection = __commonJS({
               options.key = self.ssl.key;
             }
           }
-          const net2 = require("net");
-          if (net2.isIP && net2.isIP(host) === 0) {
+          const net = require("net");
+          if (net.isIP && net.isIP(host) === 0) {
             options.servername = host;
           }
           try {
@@ -5981,10 +5981,10 @@ var require_storage_service = __commonJS({
                 }
               } catch (error) {
                 const attempts = Number(row.attempts || 0) + 1;
-                const delay2 = calcBackoffMs(attempts);
+                const delay = calcBackoffMs(attempts);
                 this.runMutation("UPDATE outbox SET attempts = ?, next_retry_at = ? WHERE seq = ?;", [
                   attempts,
-                  nowMs() + delay2,
+                  nowMs() + delay,
                   row.seq
                 ]);
                 failed += 1;
@@ -6729,11 +6729,9 @@ var {
   ipcMain,
   Notification,
   screen,
-  session,
   nativeTheme
 } = require("electron");
 var fs = require("fs");
-var net = require("net");
 var path = require("path");
 var { pathToFileURL } = require("url");
 var {
@@ -6757,106 +6755,13 @@ var SUPPORTED_PROMPT_TYPES = /* @__PURE__ */ new Set(["general", "over", "img", 
 var LAUNCHER_WIDTH = 640;
 var LAUNCHER_HEIGHT = 56;
 var LAUNCHER_MAX_HEIGHT = 440;
-var DEEPSEEK_PROXY_HOST = "127.0.0.1";
-var DEEPSEEK_PROXY_PREFERRED_PORT = 5001;
-var DEEPSEEK_PROXY_READY_TIMEOUT_MS = 12e3;
-var DEEPSEEK_LOGIN_URL = "https://chat.deepseek.com";
-var DEEPSEEK_LOGIN_PARTITION = "persist:deepseek-login";
-var DEEPSEEK_LOGIN_ACCEPT_LANGUAGE = "zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7";
 var STORAGE_CONVERSATIONS_CHANGED_CHANNEL = "storage:conversations-changed";
-var deepSeekProxyState = {
-  started: false,
-  baseUrl: "",
-  port: 0,
-  startPromise: null,
-  lastError: "",
-  moduleEntryPath: ""
-};
-var deepSeekLoginPromise = null;
-var deepSeekLoginHeadersPatched = false;
-function extractDeepSeekUserToken(rawToken) {
-  const source = String(rawToken || "").trim();
-  if (!source) return "";
-  try {
-    const parsed = JSON.parse(source);
-    if (typeof parsed === "string") {
-      return extractDeepSeekUserToken(parsed);
-    }
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      const value = parsed.value;
-      if (typeof value === "string") {
-        return value.trim();
-      }
-      if (value !== void 0 && value !== null) {
-        return String(value).trim();
-      }
-    }
-  } catch (_error) {
-  }
-  return source;
-}
-function getDeepSeekLoginUserAgent() {
-  let platformSection = "X11; Linux x86_64";
-  if (process.platform === "darwin") {
-    platformSection = "Macintosh; Intel Mac OS X 10_15_7";
-  } else if (process.platform === "win32") {
-    platformSection = "Windows NT 10.0; Win64; x64";
-  }
-  const chromeVersion = String(process.versions.chrome || "124.0.0.0");
-  return `Mozilla/5.0 (${platformSection}) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${chromeVersion} Safari/537.36`;
-}
-function getDeepSeekSecChUaPlatform() {
-  if (process.platform === "darwin") return '"macOS"';
-  if (process.platform === "win32") return '"Windows"';
-  return '"Linux"';
-}
-function setHeaderCaseInsensitive(headers, name, value) {
-  const existingKey = Object.keys(headers).find(
-    (key) => String(key).toLowerCase() === name.toLowerCase()
-  );
-  if (existingKey && existingKey !== name) {
-    delete headers[existingKey];
-  }
-  headers[name] = value;
-}
-function deleteHeaderCaseInsensitive(headers, name) {
-  const existingKey = Object.keys(headers).find(
-    (key) => String(key).toLowerCase() === name.toLowerCase()
-  );
-  if (existingKey) {
-    delete headers[existingKey];
-  }
-}
-function installDeepSeekLoginHeaderPatch(targetSession, userAgent) {
-  if (deepSeekLoginHeadersPatched) return;
-  deepSeekLoginHeadersPatched = true;
-  targetSession.webRequest.onBeforeSendHeaders(
-    { urls: ["https://chat.deepseek.com/*"] },
-    (details, callback) => {
-      const requestHeaders = { ...details.requestHeaders || {} };
-      setHeaderCaseInsensitive(requestHeaders, "User-Agent", userAgent);
-      setHeaderCaseInsensitive(requestHeaders, "Accept-Language", DEEPSEEK_LOGIN_ACCEPT_LANGUAGE);
-      setHeaderCaseInsensitive(
-        requestHeaders,
-        "Sec-CH-UA",
-        '"Not A(Brand";v="99", "Google Chrome";v="124", "Chromium";v="124"'
-      );
-      setHeaderCaseInsensitive(requestHeaders, "Sec-CH-UA-Mobile", "?0");
-      setHeaderCaseInsensitive(requestHeaders, "Sec-CH-UA-Platform", getDeepSeekSecChUaPlatform());
-      deleteHeaderCaseInsensitive(requestHeaders, "X-Requested-With");
-      callback({ cancel: false, requestHeaders });
-    }
-  );
-}
 function resolveAppFile(...parts) {
   return path.join(app.getAppPath(), ...parts);
 }
 function resolveMainPreloadPath() {
   if (!DEV_PRELOAD_PATH) return resolveAppFile("runtime", "preload.js");
   return path.isAbsolute(DEV_PRELOAD_PATH) ? DEV_PRELOAD_PATH : path.resolve(app.getAppPath(), DEV_PRELOAD_PATH);
-}
-function resolveDeepSeekLoginPreloadPath() {
-  return resolveAppFile("electron", "deepseek_login_preload.js");
 }
 function resolveMainEntryUrl() {
   if (IS_RUNTIME_DEV_SERVER) return DEV_MAIN_URL;
@@ -7203,262 +7108,6 @@ function registerLauncherHotkey(rawSettings = {}) {
     error: `${fallbackMsg}${recoveryMsg}`
   };
 }
-function delay(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-function getDeepSeekProxyDataDir() {
-  const dir = path.join(app.getPath("userData"), "deepseek-api");
-  fs.mkdirSync(dir, { recursive: true });
-  return dir;
-}
-function isPortAvailable(port, host = DEEPSEEK_PROXY_HOST) {
-  return new Promise((resolve) => {
-    const server = net.createServer();
-    server.unref();
-    server.once("error", () => {
-      resolve(false);
-    });
-    server.once("listening", () => {
-      server.close(() => resolve(true));
-    });
-    try {
-      server.listen(port, host);
-    } catch (_error) {
-      resolve(false);
-    }
-  });
-}
-function getFreePort(host = DEEPSEEK_PROXY_HOST) {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.unref();
-    server.once("error", (error) => {
-      reject(error);
-    });
-    server.once("listening", () => {
-      const addressInfo = server.address();
-      const port = addressInfo && typeof addressInfo === "object" ? addressInfo.port : 0;
-      server.close(() => {
-        if (port > 0) {
-          resolve(port);
-        } else {
-          reject(new Error("Failed to allocate free port."));
-        }
-      });
-    });
-    server.listen(0, host);
-  });
-}
-function resolveDeepSeekModuleEntryPath() {
-  if (deepSeekProxyState.moduleEntryPath) {
-    return deepSeekProxyState.moduleEntryPath;
-  }
-  const packageJsonPath = require.resolve("@ziuchen/deepseek-api/package.json");
-  const packageDir = path.dirname(packageJsonPath);
-  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-  const mainEntry = typeof packageJson.main === "string" && packageJson.main.trim() ? packageJson.main.trim() : "";
-  const candidates = [
-    path.join(packageDir, "dist", "index.mjs"),
-    mainEntry ? path.join(packageDir, mainEntry) : "",
-    path.join(packageDir, "dist", "index.js")
-  ].filter(Boolean);
-  const entryPath = candidates.find((candidate) => fs.existsSync(candidate));
-  if (!entryPath) {
-    throw new Error("Unable to resolve @ziuchen/deepseek-api entry file.");
-  }
-  deepSeekProxyState.moduleEntryPath = entryPath;
-  return entryPath;
-}
-async function isDeepSeekProxyReady(baseOrigin) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 1500);
-  try {
-    const response = await fetch(`${baseOrigin}/v1/models`, {
-      method: "GET",
-      signal: controller.signal
-    });
-    return response.ok;
-  } catch (_error) {
-    return false;
-  } finally {
-    clearTimeout(timer);
-  }
-}
-async function waitForDeepSeekProxyReady(baseOrigin, timeoutMs = DEEPSEEK_PROXY_READY_TIMEOUT_MS) {
-  const startedAt = Date.now();
-  while (Date.now() - startedAt < timeoutMs) {
-    if (await isDeepSeekProxyReady(baseOrigin)) {
-      return true;
-    }
-    await delay(250);
-  }
-  return false;
-}
-async function startDeepSeekProxy() {
-  const preferredAvailable = await isPortAvailable(DEEPSEEK_PROXY_PREFERRED_PORT);
-  const selectedPort = preferredAvailable ? DEEPSEEK_PROXY_PREFERRED_PORT : await getFreePort(DEEPSEEK_PROXY_HOST);
-  const baseOrigin = `http://${DEEPSEEK_PROXY_HOST}:${selectedPort}`;
-  process.env.LISTEN_HOST = DEEPSEEK_PROXY_HOST;
-  process.env.LISTEN_PORT = String(selectedPort);
-  process.env.DATA_DIR = getDeepSeekProxyDataDir();
-  const entryPath = resolveDeepSeekModuleEntryPath();
-  await import(pathToFileURL(entryPath).toString());
-  const isReady = await waitForDeepSeekProxyReady(baseOrigin);
-  if (!isReady) {
-    throw new Error("DeepSeek proxy did not become ready in time.");
-  }
-  deepSeekProxyState.started = true;
-  deepSeekProxyState.baseUrl = `${baseOrigin}/v1`;
-  deepSeekProxyState.port = selectedPort;
-  deepSeekProxyState.lastError = "";
-  return {
-    ok: true,
-    baseUrl: deepSeekProxyState.baseUrl,
-    port: deepSeekProxyState.port
-  };
-}
-async function ensureDeepSeekProxy() {
-  if (deepSeekProxyState.started && deepSeekProxyState.baseUrl) {
-    return {
-      ok: true,
-      baseUrl: deepSeekProxyState.baseUrl,
-      port: deepSeekProxyState.port
-    };
-  }
-  if (deepSeekProxyState.startPromise) {
-    return deepSeekProxyState.startPromise;
-  }
-  deepSeekProxyState.startPromise = (async () => {
-    try {
-      return await startDeepSeekProxy();
-    } catch (error) {
-      const errorText = String(error?.message || error);
-      deepSeekProxyState.started = false;
-      deepSeekProxyState.baseUrl = "";
-      deepSeekProxyState.port = 0;
-      deepSeekProxyState.lastError = errorText;
-      return {
-        ok: false,
-        error: errorText
-      };
-    } finally {
-      deepSeekProxyState.startPromise = null;
-    }
-  })();
-  return deepSeekProxyState.startPromise;
-}
-function createDeepSeekLoginWindow(owner) {
-  const userAgent = getDeepSeekLoginUserAgent();
-  const loginSession = session.fromPartition(DEEPSEEK_LOGIN_PARTITION);
-  installDeepSeekLoginHeaderPatch(loginSession, userAgent);
-  const loginPreloadPath = resolveDeepSeekLoginPreloadPath();
-  const loginWindow = new BrowserWindow({
-    width: 440,
-    height: 760,
-    minWidth: 400,
-    minHeight: 640,
-    show: true,
-    autoHideMenuBar: true,
-    parent: owner,
-    modal: false,
-    title: "DeepSeek Login",
-    webPreferences: {
-      preload: fs.existsSync(loginPreloadPath) ? loginPreloadPath : void 0,
-      contextIsolation: true,
-      sandbox: true,
-      nodeIntegration: false,
-      partition: DEEPSEEK_LOGIN_PARTITION
-    }
-  });
-  loginWindow.webContents.setUserAgent(userAgent);
-  loginWindow.loadURL(DEEPSEEK_LOGIN_URL, { userAgent });
-  return loginWindow;
-}
-function loginDeepSeek(owner) {
-  if (deepSeekLoginPromise) {
-    return deepSeekLoginPromise;
-  }
-  deepSeekLoginPromise = new Promise((resolve) => {
-    const loginWindow = createDeepSeekLoginWindow(owner);
-    let settled = false;
-    let pollTimer = null;
-    let latestToken = "";
-    let allowClose = false;
-    let closeGuardInProgress = false;
-    const cleanup = () => {
-      if (pollTimer) {
-        clearInterval(pollTimer);
-        pollTimer = null;
-      }
-    };
-    const settle = (payload) => {
-      if (settled) return;
-      settled = true;
-      cleanup();
-      resolve(payload);
-      if (!loginWindow.isDestroyed()) {
-        loginWindow.close();
-      }
-    };
-    const tryReadUserToken = async () => {
-      if (settled || loginWindow.isDestroyed()) return;
-      try {
-        const rawToken = await loginWindow.webContents.executeJavaScript(
-          `(() => {
-            try {
-              const raw = localStorage.getItem('userToken');
-              return typeof raw === 'string' ? raw.trim() : '';
-            } catch (_error) {
-              return '';
-            }
-          })()`,
-          true
-        );
-        const parsedToken = extractDeepSeekUserToken(rawToken);
-        if (parsedToken) {
-          latestToken = parsedToken;
-        }
-      } catch (_error) {
-      }
-    };
-    pollTimer = setInterval(() => {
-      tryReadUserToken().catch(() => {
-      });
-    }, 1200);
-    loginWindow.webContents.on("did-finish-load", () => {
-      tryReadUserToken().catch(() => {
-      });
-    });
-    loginWindow.on("close", (event) => {
-      if (allowClose || settled) return;
-      event.preventDefault();
-      if (closeGuardInProgress) return;
-      closeGuardInProgress = true;
-      tryReadUserToken().catch(() => {
-      }).finally(() => {
-        allowClose = true;
-        closeGuardInProgress = false;
-        if (!loginWindow.isDestroyed()) {
-          loginWindow.close();
-        }
-      });
-    });
-    loginWindow.on("closed", () => {
-      if (!settled) {
-        if (latestToken) {
-          settle({ ok: true, userToken: latestToken });
-        } else {
-          settled = true;
-          cleanup();
-          resolve({ ok: false, cancelled: true });
-        }
-      }
-    });
-  }).finally(() => {
-    deepSeekLoginPromise = null;
-  });
-  return deepSeekLoginPromise;
-}
 function createMainWindow() {
   const preloadPath = resolveMainPreloadPath();
   const isMac = process.platform === "darwin";
@@ -7526,7 +7175,6 @@ function ensureBuildArtifacts() {
   }
   const requiredPaths = [
     resolveAppFile("electron", "launcher_preload.js"),
-    resolveAppFile("electron", "deepseek_login_preload.js"),
     resolveAppFile("runtime", "main", "index.html"),
     resolveAppFile("runtime", "main", "launcher.html"),
     resolveAppFile("runtime", "preload.js"),
@@ -7832,13 +7480,6 @@ ipcMain.handle("storage:postgres-test", async (_event, connectionString) => {
 ipcMain.handle("storage:sync-now", async () => {
   const service = await ensureStorageServiceReady();
   return service.syncNow();
-});
-ipcMain.handle("deepseek:ensure-proxy", async () => {
-  return ensureDeepSeekProxy();
-});
-ipcMain.handle("deepseek:login", async (event) => {
-  const owner = BrowserWindow.fromWebContents(event.sender) || mainWindow || void 0;
-  return loginDeepSeek(owner);
 });
 ipcMain.handle("launcher:get-prompts", () => {
   return readStoredPrompts();

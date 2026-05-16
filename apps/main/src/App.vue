@@ -1359,12 +1359,15 @@ onBeforeUnmount(() => {
 }
 
 .window-root {
-  --layout-shell-bg: rgba(245, 244, 243, 0.9);
+  --layout-shell-bg: rgba(245, 243, 241, 0.9);
   --workspace-surface-bg: #ffffff;
-  --workspace-edge-color: color-mix(in srgb, var(--border-primary) 55%, transparent);
-  --sidebar-vibrancy-tint: rgba(255, 255, 255, 0.1);
-  --sidebar-fallback-tint: rgba(247, 246, 244, 0.62);
-  --sidebar-vibrancy-divider: color-mix(in srgb, var(--border-primary) 62%, transparent);
+  --workspace-edge-color: rgba(0, 0, 0, 0.055);
+  --sidebar-vibrancy-tint: rgba(238, 231, 226, 0.48);
+  --sidebar-fallback-tint: rgba(239, 232, 227, 0.78);
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.52);
+  --sidebar-active-bg: rgba(255, 255, 255, 0.68);
+  --sidebar-selected-bg: rgba(232, 230, 226, 0.72);
+  --sidebar-vibrancy-divider: rgba(0, 0, 0, 0.055);
   --sidebar-region-width: 286px;
   width: 100%;
   height: 100%;
@@ -1379,9 +1382,9 @@ onBeforeUnmount(() => {
 }
 
 .window-root.fallback-vibrancy {
-  --layout-shell-bg: #f1efec;
+  --layout-shell-bg: #f3f0ec;
   --workspace-surface-bg: #fcfcfb;
-  --sidebar-fallback-tint: rgba(238, 235, 231, 0.86);
+  --sidebar-fallback-tint: rgba(236, 229, 224, 0.88);
 }
 
 .window-drag-region {
@@ -1491,7 +1494,7 @@ onBeforeUnmount(() => {
 
 .help-button:hover {
   color: var(--text-primary);
-  background-color: rgba(255, 255, 255, 0.62) !important;
+  background-color: var(--sidebar-hover-bg) !important;
 }
 
 .assistant-sidebar {
@@ -1512,7 +1515,7 @@ onBeforeUnmount(() => {
 .assistant-sidebar-draggable {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .assistant-sidebar-draggable.is-sort-enabled .assistant-row {
@@ -1525,7 +1528,7 @@ onBeforeUnmount(() => {
 }
 
 .assistant-group.active {
-  background-color: rgba(255, 255, 255, 0.52);
+  background-color: var(--sidebar-active-bg);
 }
 
 .assistant-row {
@@ -1547,7 +1550,7 @@ onBeforeUnmount(() => {
 
 .assistant-row:hover {
   color: var(--text-primary);
-  background-color: rgba(255, 255, 255, 0.62);
+  background-color: var(--sidebar-hover-bg);
 }
 
 .assistant-sidebar-draggable.is-assistant-dragging .assistant-row:hover {
@@ -1670,7 +1673,7 @@ onBeforeUnmount(() => {
 
 .session-item.is-selected {
   color: var(--text-primary);
-  background-color: color-mix(in srgb, var(--bg-tertiary) 84%, transparent);
+  background-color: var(--sidebar-selected-bg);
 }
 
 .session-name {
@@ -1735,6 +1738,7 @@ html:not(.dark) .session-context-item:hover {
 
 .sidebar-nav-item {
   padding-top: 6px;
+  border-top: 1px solid var(--sidebar-vibrancy-divider);
 }
 
 .sidebar-nav-item .nav-item {
@@ -1759,7 +1763,7 @@ html:not(.dark) .session-context-item:hover {
 
 .sidebar-nav-item .nav-item:hover {
   color: var(--text-primary);
-  background-color: rgba(255, 255, 255, 0.62);
+  background-color: var(--sidebar-hover-bg);
 }
 
 .sidebar-nav {
@@ -1792,13 +1796,13 @@ html:not(.dark) .session-context-item:hover {
 
 .nav-item:hover {
   color: var(--text-primary);
-  background-color: rgba(255, 255, 255, 0.62);
+  background-color: var(--sidebar-hover-bg);
 }
 
 .nav-item.active-tab {
   color: var(--text-primary);
   border-color: transparent;
-  background-color: #eae9e8;
+  background-color: var(--sidebar-selected-bg);
   box-shadow: none;
 }
 
@@ -1869,10 +1873,7 @@ html:not(.dark) .session-context-item:hover {
   z-index: 1;
   border-radius: var(--radius-xl);
   border: none;
-  box-shadow:
-    inset 0 1px 0 var(--workspace-edge-color),
-    inset -1px 0 0 var(--workspace-edge-color),
-    inset 0 -1px 0 var(--workspace-edge-color);
+  box-shadow: inset 1px 0 0 var(--workspace-edge-color);
   background-color: var(--workspace-surface-bg);
 }
 
@@ -2009,21 +2010,24 @@ html.dark .session-item.is-selected {
 }
 
 html.dark .window-root {
-  --layout-shell-bg: #1a1b1d;
+  --layout-shell-bg: #1b1b1b;
   --workspace-surface-bg: #181818;
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.08);
+  --sidebar-active-bg: rgba(255, 255, 255, 0.07);
+  --sidebar-selected-bg: rgba(255, 255, 255, 0.13);
   --sidebar-vibrancy-divider: rgba(255, 255, 255, 0.07);
-  --workspace-edge-color: rgba(6, 8, 11, 0.88);
+  --workspace-edge-color: rgba(255, 255, 255, 0.07);
 }
 
 html.dark .window-root.native-vibrancy {
   --layout-shell-bg: transparent;
-  --sidebar-vibrancy-tint: rgba(30, 30, 32, 0.28);
+  --sidebar-vibrancy-tint: rgba(32, 31, 30, 0.42);
 }
 
 html.dark .window-root.fallback-vibrancy {
-  --layout-shell-bg: #191b1e;
+  --layout-shell-bg: #191919;
   --workspace-surface-bg: #181818;
-  --sidebar-fallback-tint: rgba(44, 42, 42, 0.92);
+  --sidebar-fallback-tint: rgba(36, 35, 34, 0.92);
 }
 
 @media (max-width: 900px) {

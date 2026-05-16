@@ -7,7 +7,6 @@
     "paths": {
       "@/*": ["./src/*"],
       "@window/*": ["../window/src/*"],
-      "@animation/*": ["../../animation/*"],
       "@shared/*": ["../../shared/*"]
     },
     "types": ["vite/client", "node"],

@@ -1049,63 +1049,61 @@ defineExpose({ focus, senderRef });
             />
           </div>
 
-          <Transition name="compact-extra-actions">
-            <div v-if="showCompactExpandedActions" class="compact-extra-actions-row">
-              <el-tooltip :content="reasoningTooltipContent">
-                <el-button
-                  ref="reasoningButtonRef"
-                  :class="{
-                    'is-active-special': tempReasoningEffort && tempReasoningEffort !== 'default',
-                  }"
-                  class="input-icon-btn circle-action-btn"
-                  size="default"
-                  circle
-                  :disabled="isRecording"
-                  @click="toggleReasoningSelector"
-                >
-                  <Brain :size="17" />
-                </el-button>
-              </el-tooltip>
+          <div v-if="showCompactExpandedActions" class="compact-extra-actions-row">
+            <el-tooltip :content="reasoningTooltipContent">
+              <el-button
+                ref="reasoningButtonRef"
+                :class="{
+                  'is-active-special': tempReasoningEffort && tempReasoningEffort !== 'default',
+                }"
+                class="input-icon-btn circle-action-btn"
+                size="default"
+                circle
+                :disabled="isRecording"
+                @click="toggleReasoningSelector"
+              >
+                <Brain :size="17" />
+              </el-button>
+            </el-tooltip>
 
-              <el-tooltip content="语音回复设置">
-                <el-button
-                  ref="voiceButtonRef"
-                  class="input-icon-btn circle-action-btn"
-                  size="default"
-                  circle
-                  :disabled="isRecording"
-                  :class="{ 'is-active-special': selectedVoice }"
-                  @click="toggleVoiceSelector"
-                >
-                  <AudioLines :size="17" />
-                </el-button>
-              </el-tooltip>
-              <el-tooltip content="MCP工具">
-                <el-button
-                  class="input-icon-btn circle-action-btn"
-                  size="default"
-                  circle
-                  :disabled="isRecording"
-                  :class="{ 'is-active-special': isMcpActive }"
-                  @click="$emit('open-mcp-dialog')"
-                >
-                  <Hammer :size="17" />
-                </el-button>
-              </el-tooltip>
-              <el-tooltip content="Skill 技能库">
-                <el-button
-                  class="input-icon-btn circle-action-btn"
-                  size="default"
-                  circle
-                  :disabled="isRecording"
-                  :class="{ 'is-active-special': activeSkillIds && activeSkillIds.length > 0 }"
-                  @click="$emit('open-skill-dialog')"
-                >
-                  <Library :size="17" />
-                </el-button>
-              </el-tooltip>
-            </div>
-          </Transition>
+            <el-tooltip content="语音回复设置">
+              <el-button
+                ref="voiceButtonRef"
+                class="input-icon-btn circle-action-btn"
+                size="default"
+                circle
+                :disabled="isRecording"
+                :class="{ 'is-active-special': selectedVoice }"
+                @click="toggleVoiceSelector"
+              >
+                <AudioLines :size="17" />
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="MCP工具">
+              <el-button
+                class="input-icon-btn circle-action-btn"
+                size="default"
+                circle
+                :disabled="isRecording"
+                :class="{ 'is-active-special': isMcpActive }"
+                @click="$emit('open-mcp-dialog')"
+              >
+                <Hammer :size="17" />
+              </el-button>
+            </el-tooltip>
+            <el-tooltip content="Skill 技能库">
+              <el-button
+                class="input-icon-btn circle-action-btn"
+                size="default"
+                circle
+                :disabled="isRecording"
+                :class="{ 'is-active-special': activeSkillIds && activeSkillIds.length > 0 }"
+                @click="$emit('open-skill-dialog')"
+              >
+                <Library :size="17" />
+              </el-button>
+            </el-tooltip>
+          </div>
 
           <div
             v-if="isCompactNewChatModeActive"
@@ -2002,20 +2000,49 @@ html.dark .chat-input-area-vertical {
 }
 
 .chat-input-area-vertical.is-compact-new-chat {
-  border-radius: 999px;
-  padding: 8px 10px 8px 14px;
+  min-height: 86px;
+  border-radius: 22px;
+  padding: 13px 14px 12px 16px;
+  border-color: color-mix(in srgb, #d7d7d4 92%, transparent);
+  background: #ffffff;
+  box-shadow:
+    0 18px 44px rgba(18, 18, 18, 0.05),
+    0 1px 0 rgba(255, 255, 255, 0.85) inset;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
 }
 
 .chat-input-area-vertical.is-compact-new-chat.has-compact-extra-actions {
   border-radius: 22px;
-  padding-bottom: 10px;
+  padding-bottom: 12px;
+}
+
+.chat-input-area-vertical.is-compact-new-chat:focus-within {
+  border-color: color-mix(in srgb, #bbb9b4 88%, #111111);
+  box-shadow:
+    0 20px 48px rgba(18, 18, 18, 0.07),
+    0 0 0 1px rgba(20, 20, 20, 0.04);
+}
+
+html.dark .chat-input-area-vertical.is-compact-new-chat {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #202020;
+  box-shadow:
+    0 18px 44px rgba(0, 0, 0, 0.28),
+    0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+html.dark .chat-input-area-vertical.is-compact-new-chat:focus-within {
+  border-color: rgba(255, 255, 255, 0.22);
 }
 
 .compact-inline-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding-right: 84px;
+  padding-right: 90px;
 }
 
 .input-wrapper.input-wrapper-compact {
@@ -2033,16 +2060,14 @@ html.dark .chat-input-area-vertical {
 
 .compact-floating-actions {
   position: absolute;
-  top: 8px;
-  right: 10px;
+  top: 13px;
+  right: 14px;
   z-index: 3;
-  transition:
-    top 360ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 360ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition: top 180ms ease;
 }
 
 .compact-floating-actions.is-shifted {
-  top: calc(8px + var(--input-text-height, 34px) + 8px);
+  top: calc(13px + var(--input-text-height, 34px) + 8px);
 }
 
 .compact-extra-actions-row {
@@ -2050,38 +2075,13 @@ html.dark .chat-input-area-vertical {
   align-items: center;
   gap: 9px;
   margin-top: 8px;
-  padding-right: 84px;
+  padding-right: 90px;
   overflow: hidden;
-}
-
-.compact-extra-actions-enter-active,
-.compact-extra-actions-leave-active {
-  transition:
-    max-height 360ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 240ms ease,
-    transform 360ms cubic-bezier(0.22, 1, 0.36, 1),
-    margin-top 320ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.compact-extra-actions-enter-from,
-.compact-extra-actions-leave-to {
-  max-height: 0;
-  opacity: 0;
-  transform: translateY(-6px);
-  margin-top: 0;
-}
-
-.compact-extra-actions-enter-to,
-.compact-extra-actions-leave-from {
-  max-height: 44px;
-  opacity: 1;
-  transform: translateY(0);
-  margin-top: 8px;
 }
 
 .chat-input-area-vertical.is-compact-new-chat .chat-textarea-vertical:deep(.el-textarea__inner) {
   overflow-y: hidden;
-  line-height: var(--input-text-height, 34px);
+  line-height: 1.45;
   font-size: 16px;
 }
 

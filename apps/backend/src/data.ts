@@ -8,14 +8,6 @@ const MIN_CHAT_WINDOW_HEIGHT = 640;
 const DEV_WINDOW_URL = String(process.env.ANYWHERE_DEV_WINDOW_URL || '').trim();
 const DEV_FAST_WINDOW_ENTRY = String(process.env.ANYWHERE_DEV_FAST_WINDOW_ENTRY || '').trim();
 const DEEPSEEK_OFFICIAL_CHANNEL = 'deepseek-official';
-const DEEPSEEK_OFFICIAL_SEED_KEY = 'deepseekOfficial';
-const DEEPSEEK_OFFICIAL_PROVIDER_ID = 'builtin_deepseek_official';
-const DEEPSEEK_OFFICIAL_MODEL_LIST = [
-  'deepseek-chat',
-  'deepseek-reasoner',
-  'deepseek-chat-search',
-  'deepseek-reasoner-search',
-];
 
 const { requestTextOpenAI } = require('./input');
 const { getBuiltinServersMetadata } = require('./builtin_metadata');
@@ -24,24 +16,6 @@ const getBuiltinServers = () =>
   getBuiltinServersMetadata({
     isWin: process.platform === 'win32',
   });
-
-function hasDeepSeekOfficialProvider(providers = {}) {
-  return Object.values(providers).some(
-    (provider) =>
-      provider &&
-      typeof provider === 'object' &&
-      String(provider.channel || '').toLowerCase() === DEEPSEEK_OFFICIAL_CHANNEL,
-  );
-}
-
-function getUniqueProviderId(providers = {}, baseId = DEEPSEEK_OFFICIAL_PROVIDER_ID) {
-  if (!providers[baseId]) return baseId;
-  let suffix = 1;
-  while (providers[`${baseId}_${suffix}`]) {
-    suffix += 1;
-  }
-  return `${baseId}_${suffix}`;
-}
 
 function appendQueryParam(rawUrl, key, value) {
   if (!rawUrl) return rawUrl;
@@ -67,6 +41,139 @@ function syncNativeTheme(config = {}) {
   ipcRenderer.send('utools:sync-native-theme', payload);
 }
 
+function isDeepSeekOfficialProvider(provider) {
+  return (
+    provider &&
+    typeof provider === 'object' &&
+    String(provider.channel || '').toLowerCase() === DEEPSEEK_OFFICIAL_CHANNEL
+  );
+}
+
+function resolveProviderOrder(config = {}) {
+  const providers = config.providers || {};
+  const orderedIds = Array.isArray(config.providerOrder)
+    ? config.providerOrder.map(String).filter((providerId) => providerId && providers[providerId])
+    : [];
+  const remainingIds = Object.keys(providers).filter(
+    (providerId) => !orderedIds.includes(providerId),
+  );
+  return [...orderedIds, ...remainingIds];
+}
+
+function resolveFirstAvailableModelKey(config = {}) {
+  const providers = config.providers || {};
+  const orderedIds = resolveProviderOrder(config);
+  for (const providerId of orderedIds) {
+    const provider = providers[providerId];
+    if (!provider || provider.enable === false) continue;
+    const firstModel = Array.isArray(provider.modelList)
+      ? provider.modelList.map((item) => String(item || '').trim()).find(Boolean)
+      : '';
+    if (firstModel) {
+      return `${providerId}|${firstModel}`;
+    }
+  }
+  return '';
+}
+
+function removeProviderIdsFromNestedState(value, removedProviderIdSet) {
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => removeProviderIdsFromNestedState(item, removedProviderIdSet))
+      .filter((item) => item !== undefined);
+  }
+
+  if (value && typeof value === 'object') {
+    const output = {};
+    for (const [key, item] of Object.entries(value)) {
+      if (removedProviderIdSet.has(key)) continue;
+      const cleanedItem = removeProviderIdsFromNestedState(item, removedProviderIdSet);
+      if (cleanedItem !== undefined) {
+        output[key] = cleanedItem;
+      }
+    }
+    return output;
+  }
+
+  if (typeof value === 'string' && removedProviderIdSet.has(value)) {
+    return undefined;
+  }
+
+  return value;
+}
+
+function removeDeepSeekOfficialSeedState(config = {}) {
+  if (!config.builtinProviderSeeds || typeof config.builtinProviderSeeds !== 'object') {
+    return false;
+  }
+  if (config.builtinProviderSeeds.deepseekOfficial === undefined) {
+    return false;
+  }
+  delete config.builtinProviderSeeds.deepseekOfficial;
+  if (Object.keys(config.builtinProviderSeeds).length === 0) {
+    delete config.builtinProviderSeeds;
+  }
+  return true;
+}
+
+function removeDeepSeekOfficialProviders(config = {}) {
+  let changed = removeDeepSeekOfficialSeedState(config);
+  if (!config.providers || typeof config.providers !== 'object') return changed;
+
+  const removedProviderIds = Object.keys(config.providers).filter((providerId) =>
+    isDeepSeekOfficialProvider(config.providers[providerId]),
+  );
+  if (removedProviderIds.length === 0) return changed;
+
+  const removedProviderIdSet = new Set(removedProviderIds);
+  for (const providerId of removedProviderIds) {
+    delete config.providers[providerId];
+  }
+  changed = true;
+
+  config.providerOrder = (Array.isArray(config.providerOrder) ? config.providerOrder : [])
+    .map(String)
+    .filter((providerId) => !removedProviderIdSet.has(providerId) && config.providers[providerId]);
+  if (config.providerOrder.length === 0 && Object.keys(config.providers).length > 0) {
+    config.providerOrder = Object.keys(config.providers);
+  }
+
+  for (const provider of Object.values(config.providers)) {
+    if (provider && typeof provider === 'object' && removedProviderIdSet.has(provider.folderId)) {
+      provider.folderId = '';
+    }
+  }
+
+  if (
+    config.providerFolders &&
+    typeof config.providerFolders === 'object' &&
+    !Array.isArray(config.providerFolders)
+  ) {
+    config.providerFolders = removeProviderIdsFromNestedState(
+      config.providerFolders,
+      removedProviderIdSet,
+    );
+  }
+
+  const fallbackModelKey = resolveFirstAvailableModelKey(config);
+  const normalizeModelReference = (modelKey) => {
+    const providerId = String(modelKey || '').split('|')[0] || '';
+    return removedProviderIdSet.has(providerId) ? fallbackModelKey : modelKey;
+  };
+
+  if (config.prompts && typeof config.prompts === 'object') {
+    for (const prompt of Object.values(config.prompts)) {
+      if (prompt && typeof prompt === 'object') {
+        prompt.model = normalizeModelReference(prompt.model);
+      }
+    }
+  }
+
+  config.quickModel = normalizeModelReference(config.quickModel || '');
+
+  return changed;
+}
+
 // 默认配置 (保持不变)
 const defaultConfig = {
   config: {
@@ -78,20 +185,9 @@ const defaultConfig = {
         modelList: [],
         enable: true,
       },
-      [DEEPSEEK_OFFICIAL_PROVIDER_ID]: {
-        name: 'DeepSeek 官方',
-        url: '',
-        api_key: '',
-        modelList: [...DEEPSEEK_OFFICIAL_MODEL_LIST],
-        enable: true,
-        channel: DEEPSEEK_OFFICIAL_CHANNEL,
-      },
     },
-    providerOrder: ['0', DEEPSEEK_OFFICIAL_PROVIDER_ID],
+    providerOrder: ['0'],
     providerFolders: {},
-    builtinProviderSeeds: {
-      [DEEPSEEK_OFFICIAL_SEED_KEY]: true,
-    },
     prompts: {
       AI: {
         type: 'over',
@@ -362,33 +458,8 @@ async function getConfig() {
     fullConfigData.config.providerOrder = Object.keys(fullConfigData.config.providers);
     shouldPersistConfigDoc = true;
   }
-  if (
-    !fullConfigData.config.builtinProviderSeeds ||
-    typeof fullConfigData.config.builtinProviderSeeds !== 'object' ||
-    Array.isArray(fullConfigData.config.builtinProviderSeeds)
-  ) {
-    fullConfigData.config.builtinProviderSeeds = {};
-    shouldPersistConfigDoc = true;
-  }
-
-  if (fullConfigData.config.builtinProviderSeeds[DEEPSEEK_OFFICIAL_SEED_KEY] !== true) {
-    if (!hasDeepSeekOfficialProvider(fullConfigData.config.providers)) {
-      const deepSeekProviderId = getUniqueProviderId(fullConfigData.config.providers);
-      fullConfigData.config.providers[deepSeekProviderId] = {
-        name: 'DeepSeek 官方',
-        url: '',
-        api_key: '',
-        modelList: [...DEEPSEEK_OFFICIAL_MODEL_LIST],
-        enable: true,
-        channel: DEEPSEEK_OFFICIAL_CHANNEL,
-      };
-      if (!fullConfigData.config.providerOrder.includes(deepSeekProviderId)) {
-        fullConfigData.config.providerOrder.push(deepSeekProviderId);
-      }
-      shouldPersistProvidersDoc = true;
-      shouldPersistConfigDoc = true;
-    }
-    fullConfigData.config.builtinProviderSeeds[DEEPSEEK_OFFICIAL_SEED_KEY] = true;
+  if (removeDeepSeekOfficialProviders(fullConfigData.config)) {
+    shouldPersistProvidersDoc = true;
     shouldPersistConfigDoc = true;
   }
 
@@ -499,7 +570,6 @@ function checkConfig(config) {
     zoom: 1,
     language: 'zh',
     providerFolders: {},
-    builtinProviderSeeds: {},
     mcpServers: {},
     tags: {},
     isDarkMode: false,
@@ -532,6 +602,10 @@ function checkConfig(config) {
 
   if (!['none', 'anchor'].includes(String(config.messageNavigation || ''))) {
     config.messageNavigation = 'anchor';
+    flag = true;
+  }
+
+  if (removeDeepSeekOfficialProviders(config)) {
     flag = true;
   }
 
