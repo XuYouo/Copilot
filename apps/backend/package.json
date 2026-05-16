@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "esbuild src/preload.ts src/window_preload.ts src/fast_window_preload.ts src/runtime/file_runtime.ts src/runtime/mcp_runtime.ts src/runtime/skill_runtime.ts --bundle --minify --platform=node --outdir=./public --outbase=src --format=cjs --external:electron --legal-comments=none",
-    "watch": "esbuild src/preload.ts src/window_preload.ts src/fast_window_preload.ts src/runtime/file_runtime.ts src/runtime/mcp_runtime.ts src/runtime/skill_runtime.ts --bundle --platform=node --outdir=./public --outbase=src --format=cjs --external:electron --watch",
+    "watch": "esbuild src/preload.ts src/window_preload.ts src/fast_window_preload.ts src/runtime/file_runtime.ts src/runtime/mcp_runtime.ts src/runtime/skill_runtime.ts --bundle --platform=node --outdir=./public --outbase=src --format=cjs --external:electron --watch=forever",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "keywords": [],
